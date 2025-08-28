@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Light Share</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1>📁 Local File Sharing</h1>
+                <p>Share files across your local network</p>
+            </div>
+            <button id="theme-toggle" class="theme-btn">
+                <i class="fas fa-moon"></i>
+            </button>
+        </header>
+
+        <div class="upload-section">
+            <h2>📤 Upload File</h2>
+            <form method="POST" action="/upload" enctype="multipart/form-data">
+                <div class="upload-area" id="upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Click to select files or drag & drop here</p>
+                    <input type="file" name="file" id="file-input" multiple>
+                </div>
+                <button type="submit" class="upload-btn">
+                    <i class="fas fa-upload"></i> Upload Files
+                </button>
+            </form>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">
+                            <i class="fas fa-{% if category == 'success' %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="files-section">
+            <div class="section-header">
+                <h2>📋 Shared Files ({{ files|length }})</h2>
+                {% if files %}
+                <button onclick="confirmClearAll()" class="clear-btn">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+                {% endif %}
+            </div>
+
+            {% if files %}
+            <div class="files-list">
+                {% for file in files %}
+                <div class="file-card">
+                    <div class="file-info">
+                        <div class="file-icon">
+                            <i class="fas fa-file"></i>
+                        </div>
+                        <div class="file-details">
+                            <h3 class="file-name">{{ file.original_filename }}</h3>
+                            <div class="file-meta">
+                                <span class="file-size">{{ file.formatted_size }}</span>
+                                <span class="file-time">{{ file.relative_time }}</span>
+                                <span class="file-uploader">From {{ file.uploader_ip }}</span>
+                                <span class="file-downloads">{{ file.download_count }} download{{ 's' if file.download_count != 1 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <a href="/download/{{ file.filename }}" class="action-btn download-btn">
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                        <button onclick="confirmDelete('{{ file.filename }}', '{{ file.original_filename }}')" class="action-btn delete-btn">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h3>No files shared yet</h3>
+                <p>Upload files to get started with sharing</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <footer class="footer">
+            <p>Running on {{ request.host }} - Local Network File Sharing</p>
+        </footer>
+    </div>
+
+    <div id="delete-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Confirm Delete</h3>
+            <p>Are you sure you want to delete "<span id="delete-filename"></span>"?</p>
+            <div class="modal-actions">
+                <button onclick="closeModal('delete-modal')" class="modal-btn cancel">Cancel</button>
+                <button onclick="performDelete()" class="modal-btn confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="clear-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Clear All Files</h3>
+            <p>Are you sure you want to delete ALL shared files?</p>
+            <div class="modal-actions">
+                <button onclick="closeModal('clear-modal')" class="modal-btn cancel">Cancel</button>
+                <a href="/clear-all" class="modal-btn confirm">Clear All</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('theme-toggle');
+        const isDarkMode = localStorage.getItem('darkMode') === 'true';
+        
+        if (isDarkMode) {
+            document.body.classList.add('dark-mode');
+            themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isNowDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('darkMode', isNowDark);
+            themeToggle.innerHTML = isNowDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+        });
+
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            fileInput.files = e.dataTransfer.files;
+            if (fileInput.files.length > 0) {
+                uploadArea.querySelector('p').textContent = `Selected: ${fileInput.files[0].name}`;
+            }
+        });
+        
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                uploadArea.querySelector('p').textContent = `Selected: ${fileInput.files[0].name}`;
+            }
+        });
+
+        let fileToDelete = '';
+        function confirmDelete(filename, originalName) {
+            fileToDelete = filename;
+            document.getElementById('delete-filename').textContent = originalName;
+            showModal('delete-modal');
+        }
+        function confirmClearAll() { showModal('clear-modal'); }
+        function performDelete() { window.location.href = `/delete/${fileToDelete}`; }
+        function showModal(modalId) { document.getElementById(modalId).classList.remove('hidden'); }
+        function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) e.target.classList.add('hidden');
+        });
+
+        setTimeout(() => {
+            document.querySelectorAll('.flash-message').forEach(msg => {
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 300);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>
