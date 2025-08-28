@@ -8,7 +8,7 @@ Designed for:
 - 🛠️ Quick file management without heavy server software  
 
 ## 🚀 Features  
-- 📤 Upload files up to 100MB  
+- 📤 Upload files up to 100GB  
 - 📥 Download files with original filenames preserved  
 - 🗑️ Delete individual files or clear all files  
 - 🕒 Shows upload time and relative time (e.g., "2 hours ago")  
