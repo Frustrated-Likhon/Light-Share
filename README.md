@@ -39,7 +39,7 @@ Designed for:
 1.  Clone this repository:
 
     ``` bash
-    git clone https://github.com/yourusername/LightMedia.git
+    git clone https://github.com/Frustrated-Likhon/Light-Share
     cd LightMedia
     ```
 
